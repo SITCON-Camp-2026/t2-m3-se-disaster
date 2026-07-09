@@ -1,7 +1,6 @@
 import { useState } from "react";
 import messyReports from "../fixtures/phase-0/messy-reports.json";
 import { EmptyState } from "../components/EmptyState";
-import { FallingDebrisBackground } from "../components/FallingDebrisBackground";
 import {
   createInitialPhase0Drafts,
   createPhase0Draft,
@@ -191,7 +190,6 @@ export function App() {
 
   return (
     <>
-      <FallingDebrisBackground />
       <Phase0AiPopup
         draft={selectedDraft}
         record={selectedRecord}

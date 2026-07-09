@@ -8,9 +8,6 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: /災害資訊\s*整理工作台/ }),
     ).toBeInTheDocument();
-    expect(
-      document.querySelector(".disaster-physics-background"),
-    ).toBeInTheDocument();
     expect(screen.getByLabelText("AI e化自動整理廣告專區")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "按此辦理 AI e化整理" }),
