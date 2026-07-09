@@ -16,32 +16,50 @@ export function Phase0RawInfoPanel({
     <div className="phase0-raw">
       <div className="panel__header">
         <div>
-          <h2>原始資訊</h2>
-          <p>這些還不是整理後資料，不能直接當成行動依據。</p>
+          <h2>【原始資訊登錄清冊】</h2>
+          <p>以下資料尚未完成查核程序，請務必依序送入整理工作台辦理。</p>
         </div>
-        <p>{records.length} 筆資料</p>
+        <p>登錄件數：{records.length} 筆</p>
       </div>
 
-      <div className="grid">
-        {records.map((record) => (
-          <article
-            className={`record-card ${record.id === selectedRecordId ? "record-card--selected" : ""}`}
-            key={record.id}
-          >
-            <div className="record-card__header">
-              <h3>{record.id}</h3>
-              <StatusBadge status={record.verificationStatus} />
-            </div>
-            <p>{record.rawText}</p>
-            <div className="record-card__meta">
-              <SourceLabel sourceType={record.sourceType} />
-              <span>更新：{formatDateTime(record.updatedAt)}</span>
-            </div>
-            <button type="button" onClick={() => onSelect(record.id)}>
-              送到整理工作台
-            </button>
-          </article>
-        ))}
+      <div className="table-frame">
+        <table className="admin-table raw-table">
+          <thead>
+            <tr>
+              <th scope="col">案號</th>
+              <th scope="col">原始文字內容摘要</th>
+              <th scope="col">來源類別</th>
+              <th scope="col">查核狀態</th>
+              <th scope="col">更新時間</th>
+              <th scope="col">作業</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((record) => (
+              <tr
+                className={
+                  record.id === selectedRecordId ? "admin-row--selected" : ""
+                }
+                key={record.id}
+              >
+                <td className="case-id">{record.id}</td>
+                <td>{record.rawText}</td>
+                <td>
+                  <SourceLabel sourceType={record.sourceType} />
+                </td>
+                <td>
+                  <StatusBadge status={record.verificationStatus} />
+                </td>
+                <td>{formatDateTime(record.updatedAt)}</td>
+                <td>
+                  <button type="button" onClick={() => onSelect(record.id)}>
+                    送整理
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

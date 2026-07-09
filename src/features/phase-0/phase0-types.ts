@@ -17,6 +17,11 @@ export type Phase0SuggestedNextStep =
   | "create_site_update_suggestion"
   | "do_not_use_yet";
 
+export type Phase0DraftStatus = "draft" | "organized_confirmed";
+
+export type Phase0ActorRelation =
+  "self" | "field_volunteer" | "third_party" | "unknown";
+
 export type Phase0MessyRecord = {
   id: string;
   rawText: string;
@@ -34,4 +39,15 @@ export type Phase0JudgementDraft = {
   suggestedNextStep: Phase0SuggestedNextStep;
   unsafeToActDirectly: boolean;
   humanReviewNote?: string;
+};
+
+export type Phase0OrganizedDraft = Phase0JudgementDraft & {
+  id: string;
+  status: Phase0DraftStatus;
+  title: string;
+  summary: string;
+  actorRelation: Phase0ActorRelation;
+  humanCorrection: string;
+  updatedAt: string;
+  confirmedAt?: string;
 };

@@ -9,6 +9,7 @@ export const statusLabels: Record<string, string> = {
   verified_open: "確認開放",
   verified_closed: "確認關閉",
   draft: "草稿",
+  organized_confirmed: "整理已確認",
   open: "可處理",
   matching: "媒合中",
   assigned: "已指派",
