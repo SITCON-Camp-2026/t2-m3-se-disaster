@@ -31,10 +31,14 @@ export function createAuditEvent(action: string, note: string): V1AuditEvent {
 
 export function loadObserverRecords(): V1ObserverRecord[] {
   const parsed = readJson<StoredObserverRecords>(observerStorageKey);
-  if (!parsed || parsed.schemaVersion !== schemaVersion) {
+  if (
+    !parsed ||
+    parsed.schemaVersion !== schemaVersion ||
+    !Array.isArray(parsed.records)
+  ) {
     return [];
   }
-  return parsed.records;
+  return parsed.records.map(normalizeObserverRecord);
 }
 
 export function saveObserverRecords(records: V1ObserverRecord[]) {
@@ -46,10 +50,14 @@ export function saveObserverRecords(records: V1ObserverRecord[]) {
 
 export function loadReviewDrafts(): V1ReviewDraft[] {
   const parsed = readJson<StoredReviewDrafts>(draftStorageKey);
-  if (!parsed || parsed.schemaVersion !== schemaVersion) {
+  if (
+    !parsed ||
+    parsed.schemaVersion !== schemaVersion ||
+    !Array.isArray(parsed.drafts)
+  ) {
     return [];
   }
-  return parsed.drafts;
+  return parsed.drafts.map(normalizeReviewDraft);
 }
 
 export function saveReviewDrafts(drafts: V1ReviewDraft[]) {
@@ -89,6 +97,42 @@ function writeJson(key: string, value: unknown) {
     return;
   }
   window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function normalizeObserverRecord(record: V1ObserverRecord): V1ObserverRecord {
+  return {
+    ...record,
+    reviewState: "needs_review",
+    verificationStatus: "unverified",
+  };
+}
+
+function normalizeReviewDraft(draft: V1ReviewDraft): V1ReviewDraft {
+  const reviewState = normalizeReviewState(draft.reviewState);
+
+  return {
+    ...draft,
+    actionSnapshot: draft.actionSnapshot
+      ? {
+          ...draft.actionSnapshot,
+          reviewState: normalizeReviewState(draft.actionSnapshot.reviewState),
+          unsafeToActDirectly:
+            draft.actionSnapshot.unsafeToActDirectly !== false,
+        }
+      : undefined,
+    reviewState,
+    unsafeToActDirectly: draft.unsafeToActDirectly !== false,
+  };
+}
+
+function normalizeReviewState(
+  value: V1ReviewDraft["reviewState"],
+): V1ReviewDraft["reviewState"] {
+  return value === "needs_review" ||
+    value === "candidate_draft" ||
+    value === "do_not_use_yet"
+    ? value
+    : "needs_review";
 }
 
 function canUseStorage() {

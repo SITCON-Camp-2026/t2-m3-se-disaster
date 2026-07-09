@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/app/App";
 
@@ -12,6 +12,13 @@ function expectHeroStat(label: string, value: string) {
   }
 
   expect(statLabel.nextElementSibling).toHaveTextContent(value);
+}
+
+function clickV1Tab(label: string) {
+  const navigation = screen.getByRole("navigation", { name: "v1 工作區" });
+  fireEvent.click(
+    within(navigation).getByRole("button", { name: new RegExp(label) }),
+  );
 }
 
 describe("App", () => {
@@ -218,9 +225,14 @@ describe("App", () => {
       screen.getByRole("link", { name: "返回 Phase 0 首頁" }),
     ).toHaveAttribute("href", "/");
     expectHeroStat("待人工確認", "0");
+    expectHeroStat("尚未建立判斷", "12");
+    expect(
+      screen.getByRole("heading", { name: "【本系統作業順序公告表】" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/待辦篩選公告列/)).toBeInTheDocument();
 
     const firstReviewButton = screen.getAllByRole("button", {
-      name: "進行整理",
+      name: /選此案/,
     })[0];
     if (!firstReviewButton) {
       throw new Error("找不到進行整理按鈕");
@@ -230,7 +242,9 @@ describe("App", () => {
     expect(
       screen.getByLabelText("v1 AI e化自動整理草稿區"),
     ).toBeInTheDocument();
+    expect(screen.getByText("同步前項目")).toBeInTheDocument();
     expectHeroStat("待人工確認", "1");
+    expectHeroStat("尚未建立判斷", "11");
   });
 
   it("renders the v1 workbench under a GitHub Pages repository path", () => {
@@ -266,7 +280,7 @@ describe("App", () => {
     window.history.pushState({}, "", "/v1/");
 
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /整理判斷/ }));
+    clickV1Tab("整理判斷");
     fireEvent.click(
       screen.getByRole("button", { name: "按此辦理 AI e化整理" }),
     );
@@ -301,7 +315,7 @@ describe("App", () => {
     window.history.pushState({}, "", "/v1/");
 
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /整理判斷/ }));
+    clickV1Tab("整理判斷");
     fireEvent.click(
       screen.getByRole("button", { name: "按此辦理 AI e化整理" }),
     );
@@ -356,27 +370,32 @@ describe("App", () => {
     window.history.pushState({}, "", "/v1/");
 
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /整理判斷/ }));
+    clickV1Tab("整理判斷");
     fireEvent.click(
       screen.getByRole("button", { name: "按此辦理 AI e化整理" }),
     );
     await screen.findByText(/AI e化草稿已送入 v1 整理欄位/);
 
-    fireEvent.click(screen.getByRole("button", { name: /^◆\s*行動者檢視$/ }));
+    clickV1Tab("行動者檢視");
     expect(screen.getByText(/目前沒有可給行動者查看/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "返回整理判斷辦理同步" }),
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /整理判斷/ }));
+    clickV1Tab("整理判斷");
     fireEvent.click(screen.getByRole("button", { name: "同步到行動者檢視" }));
     expect(screen.getByText(/已同步一份快照/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /^◆\s*行動者檢視$/ }));
+    clickV1Tab("行動者檢視");
 
     expect(
       screen.getByRole("heading", { name: "【行動者檢視】" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/不是派工單/)).toBeInTheDocument();
+    expect(screen.getByText(/本表非任務清冊/)).toBeInTheDocument();
     expect(screen.getByText(/清泥需求位置不明/)).toBeInTheDocument();
     expect(screen.getByText(/不能直接變成任務/)).toBeInTheDocument();
-    expect(screen.getByText(/補問來源或現場資訊/)).toBeInTheDocument();
+    expect(screen.getByText(/回整理者補問來源或現場資訊/)).toBeInTheDocument();
+    expect(screen.getByText(/下一步確認事項/)).toBeInTheDocument();
     expect(screen.getByText(/同步：/)).toBeInTheDocument();
   });
 
@@ -398,16 +417,30 @@ describe("App", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "【資訊整理判斷】" }),
+      screen.getByRole("heading", { name: "【未整理資料清冊】" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("原文清楚度")).toBeInTheDocument();
+    expect(screen.getByText(/已登錄，尚待資訊整理者辦理/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("原文清楚度")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("信心程度")).not.toBeInTheDocument();
     expect(screen.getAllByText("未查核").length).toBeGreaterThan(0);
     expect(screen.getByText(/雨鞋數量需要重新確認/)).toBeInTheDocument();
     expectHeroStat("待人工確認", "1");
+    expectHeroStat("尚未建立判斷", "12");
     expect(
       window.localStorage.getItem("sitcon-camp-2026-v1-observer-records"),
     ).toContain("練習場域活動中心");
+
+    const localReviewButton = screen.getAllByRole("button", {
+      name: /選此案/,
+    })[0];
+    if (!localReviewButton) {
+      throw new Error("找不到本機草稿整理按鈕");
+    }
+    fireEvent.click(localReviewButton);
+    expect(
+      screen.getByRole("heading", { name: "【資訊整理判斷】" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("原文清楚度")).toBeInTheDocument();
   });
 
   it("keeps observer input simple and marks it unverified", () => {

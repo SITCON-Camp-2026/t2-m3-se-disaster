@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import messyReports from "../../fixtures/phase-0/messy-reports.json";
 import { AiProcessingWindow } from "../../components/AiProcessingWindow";
-import { SourceLabel } from "../../components/SourceLabel";
+import { labelForSourceType, SourceLabel } from "../../components/SourceLabel";
 import { StatusBadge } from "../../components/StatusBadge";
 import { formatDateTime } from "../../lib/date";
 import {
@@ -18,6 +18,7 @@ import type {
 import { requestV1AiDraft } from "./v1-ai-organizer";
 import { createV1ReviewDraft } from "./v1-drafts";
 import {
+  actionNextStepLabels,
   observerSourceLabels,
   rawClarityLabels,
   recordOriginLabels,
@@ -37,11 +38,11 @@ import type {
   V1ObserverRecord,
   V1RawClarity,
   V1ReviewDraft,
-  V1RecordOrigin,
   V1ReviewState,
 } from "./v1-types";
 
 type V1Tab = "queue" | "observer" | "review" | "action" | "audit";
+type V1QueueFilter = "all" | "unreviewed" | "needs_review" | "unsafe" | "local";
 
 const phase0Records = messyReports satisfies Phase0MessyRecord[];
 const phase0V1Records = phase0Records.map(phase0ToV1Record);
@@ -59,6 +60,7 @@ const tabs: Array<{ key: V1Tab; label: string }> = [
 
 export function V1Workbench() {
   const [activeTab, setActiveTab] = useState<V1Tab>("queue");
+  const [queueNotice, setQueueNotice] = useState("");
   const [observerRecords, setObserverRecords] = useState<V1ObserverRecord[]>(
     () => loadObserverRecords(),
   );
@@ -141,9 +143,16 @@ export function V1Workbench() {
 
     const summary = selectedDraft.summary.trim();
     const humanReviewNote = selectedDraft.humanReviewNote.trim();
+    const decisionReason = selectedDraft.decisionReason.trim();
 
-    if (!summary || !humanReviewNote) {
-      return "請先填寫候選摘要與人工確認註記，再同步到行動者檢視。";
+    if (
+      !summary ||
+      !humanReviewNote ||
+      !decisionReason ||
+      !selectedDraft.unsafeToActDirectly ||
+      selectedDraft.reviewState === "do_not_use_yet"
+    ) {
+      return "請先完成同步前檢核表：摘要、人工確認註記、判斷理由與不可直接行動均需保留，且暫不採用資料不得同步。";
     }
 
     const event = createAuditEvent(
@@ -154,7 +163,7 @@ export function V1Workbench() {
       ...selectedDraft,
       actionSnapshot: {
         candidateKind: selectedDraft.candidateKind,
-        decisionReason: selectedDraft.decisionReason,
+        decisionReason,
         humanReviewNote,
         rawClarity: selectedDraft.rawClarity,
         reviewState: selectedDraft.reviewState,
@@ -216,7 +225,7 @@ export function V1Workbench() {
 
   function addObserverRecord(input: ObserverFormInput) {
     const now = new Date().toISOString();
-    const localId = `L-${now.replace(/\D/g, "").slice(0, 14)}`;
+    const localId = createLocalObserverId(now);
     const auditEvent = createAuditEvent(
       "觀測者新增資料",
       "新增為本機未整理草稿，預設需要人工確認。",
@@ -237,7 +246,10 @@ export function V1Workbench() {
 
     persistObserverRecords([newRecord, ...observerRecords]);
     setSelectedRecordId(localId);
-    setActiveTab("review");
+    setActiveTab("queue");
+    setQueueNotice(
+      `本機草稿 ${localId} 已登錄，尚待資訊整理者辦理整理判斷；本項登錄不是正式通報。`,
+    );
     persistReviewDrafts([
       ...reviewDrafts,
       createV1ReviewDraft(observerRecordToCombinedRecord(newRecord)),
@@ -272,6 +284,19 @@ export function V1Workbench() {
       .filter((draft) => draft.reviewState === "needs_review")
       .map((draft) => draft.recordId),
   ).size;
+  const reviewedRecordIds = new Set(
+    reviewDrafts.map((draft) => draft.recordId),
+  );
+  const unreviewedCount = records.filter(
+    (record) => !reviewedRecordIds.has(record.id),
+  ).length;
+  const actionSnapshotCount = reviewDrafts.filter(
+    (draft) => draft.actionSnapshot,
+  ).length;
+  const staleSnapshotCount = reviewDrafts.filter(
+    (draft) =>
+      draft.actionSnapshot && draft.updatedAt > draft.actionSnapshot.sharedAt,
+  ).length;
   const unsafeCount = reviewDrafts.filter(
     (draft) => draft.unsafeToActDirectly,
   ).length;
@@ -315,6 +340,10 @@ export function V1Workbench() {
             <dd>{observerRecords.length}</dd>
           </div>
           <div>
+            <dt>尚未建立判斷</dt>
+            <dd>{unreviewedCount}</dd>
+          </div>
+          <div>
             <dt>待人工確認</dt>
             <dd>{needsReviewCount}</dd>
           </div>
@@ -328,8 +357,15 @@ export function V1Workbench() {
         </div>
       </header>
 
+      <V1OperationNotice
+        actionSnapshotCount={actionSnapshotCount}
+        needsReviewCount={needsReviewCount}
+        staleSnapshotCount={staleSnapshotCount}
+        unreviewedCount={unreviewedCount}
+      />
+
       <nav className="tabs" aria-label="v1 工作區">
-        {tabs.map((tab) => (
+        {tabs.map((tab, index) => (
           <button
             key={tab.key}
             className={activeTab === tab.key ? "active" : ""}
@@ -337,7 +373,11 @@ export function V1Workbench() {
             onClick={() => setActiveTab(tab.key)}
           >
             <span>◆</span>
+            <b>{index + 1}</b>
             {tab.label}
+            <small>
+              {tabHint(tab.key, records.length, actionSnapshotCount)}
+            </small>
           </button>
         ))}
       </nav>
@@ -345,6 +385,7 @@ export function V1Workbench() {
       <section className="panel">
         {activeTab === "queue" ? (
           <RecordQueue
+            notice={queueNotice}
             records={records}
             reviewDrafts={reviewDrafts}
             selectedRecordId={selectedRecord?.id ?? ""}
@@ -358,6 +399,7 @@ export function V1Workbench() {
             draft={selectedDraft}
             record={selectedRecord}
             onAiOrganize={applyAiOrganizerDraft}
+            onGoToQueue={() => setActiveTab("queue")}
             onSyncToActionView={syncDraftToActionView}
             onUpdate={updateDraft}
           />
@@ -365,6 +407,8 @@ export function V1Workbench() {
           <ActionView
             records={records}
             reviewDrafts={reviewDrafts}
+            onGoToQueue={() => setActiveTab("queue")}
+            onGoToReview={() => setActiveTab("review")}
             onSelect={selectForReview}
           />
         ) : (
@@ -380,6 +424,76 @@ export function V1Workbench() {
   );
 }
 
+function tabHint(tab: V1Tab, recordCount: number, actionSnapshotCount: number) {
+  if (tab === "queue") {
+    return `列管 ${recordCount}`;
+  }
+  if (tab === "observer") {
+    return "本機登錄";
+  }
+  if (tab === "review") {
+    return "目前選案";
+  }
+  if (tab === "action") {
+    return `已同步 ${actionSnapshotCount}`;
+  }
+  return "本機留痕";
+}
+
+function V1OperationNotice({
+  actionSnapshotCount,
+  needsReviewCount,
+  staleSnapshotCount,
+  unreviewedCount,
+}: {
+  actionSnapshotCount: number;
+  needsReviewCount: number;
+  staleSnapshotCount: number;
+  unreviewedCount: number;
+}) {
+  return (
+    <section className="v1-operation-notice" aria-label="v1 作業順序公告表">
+      <div>
+        <h2>【本系統作業順序公告表】</h2>
+        <p>
+          請依序辦理，千萬請不要著急：先選案、再整理、再同步；同步後仍非派工單。
+        </p>
+      </div>
+      <table className="admin-table v1-operation-table">
+        <thead>
+          <tr>
+            <th scope="col">順序</th>
+            <th scope="col">辦理事項</th>
+            <th scope="col">目前件數</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>先看未整理資料清冊，找出尚未建立判斷的案號。</td>
+            <td>{unreviewedCount} 筆尚未建立判斷</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>選此案進入整理判斷，補候選摘要、人工確認註記與判斷理由。</td>
+            <td>{needsReviewCount} 筆待人工確認</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>同步到行動者檢視前，必須保留不能直接變成任務。</td>
+            <td>{actionSnapshotCount} 筆已同步快照</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>行動者只看限制與確認事項，不得直接派工或判斷真偽。</td>
+            <td>{staleSnapshotCount} 筆快照需注意新修改</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 type ObserverFormInput = {
   actorRelation: Phase0ActorRelation;
   observedAt: string;
@@ -387,6 +501,16 @@ type ObserverFormInput = {
   sourceType: string;
   uncertaintyNote: string;
 };
+
+function createLocalObserverId(now: string) {
+  const timestamp = now.replace(/\D/g, "").slice(0, 14);
+  const randomPart =
+    globalThis.crypto && "randomUUID" in globalThis.crypto
+      ? globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 4)
+      : Math.random().toString(36).slice(2, 6);
+
+  return `L-${timestamp}-${randomPart.toUpperCase()}`;
+}
 
 function ObserverForm({
   onAdd,
@@ -433,6 +557,35 @@ function ObserverForm({
           <p>新增內容只保存在本機，預設未查核，不能直接變成任務。</p>
         </div>
         <StatusBadge status="needs_review" />
+      </div>
+
+      <div className="table-frame">
+        <table className="admin-table v1-guidance-table">
+          <thead>
+            <tr>
+              <th scope="col">欄位項目</th>
+              <th scope="col">填寫提醒事項</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>原始文字</td>
+              <td>請填看到或聽到的內容；不足 8 字不受理本機登錄。</td>
+            </tr>
+            <tr>
+              <td>資訊取得方式</td>
+              <td>只表示資料如何進來，不代表可信度或官方背書。</td>
+            </tr>
+            <tr>
+              <td>來源角色</td>
+              <td>不知道就選角色待確認，不需要替現場做推測。</td>
+            </tr>
+            <tr>
+              <td>觀測或聽聞時間</td>
+              <td>可空白；不要自行補不存在的時間。</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       {error ? <div className="error-state">{error}</div> : null}
@@ -512,26 +665,102 @@ function ObserverForm({
 }
 
 function RecordQueue({
+  notice,
   records,
   reviewDrafts,
   selectedRecordId,
   onDeleteObserver,
   onSelect,
 }: {
+  notice: string;
   records: V1CombinedRecord[];
   reviewDrafts: V1ReviewDraft[];
   selectedRecordId: string;
   onDeleteObserver: (recordId: string) => void;
   onSelect: (recordId: string) => void;
 }) {
+  const [filter, setFilter] = useState<V1QueueFilter>("all");
+  const recordsWithDrafts = records.map((record) => ({
+    draft: reviewDrafts.find((item) => item.recordId === record.id),
+    record,
+  }));
+  const filterOptions: Array<{
+    count: number;
+    key: V1QueueFilter;
+    label: string;
+  }> = [
+    { count: records.length, key: "all", label: "全部列管" },
+    {
+      count: recordsWithDrafts.filter(({ draft }) => !draft).length,
+      key: "unreviewed",
+      label: "尚未建立判斷",
+    },
+    {
+      count: recordsWithDrafts.filter(
+        ({ draft }) => draft?.reviewState === "needs_review",
+      ).length,
+      key: "needs_review",
+      label: "待人工確認",
+    },
+    {
+      count: recordsWithDrafts.filter(({ draft }) => draft?.unsafeToActDirectly)
+        .length,
+      key: "unsafe",
+      label: "不可直接行動",
+    },
+    {
+      count: records.filter((record) => record.origin === "local_observer")
+        .length,
+      key: "local",
+      label: "本機新增",
+    },
+  ];
+  const filteredRecords = recordsWithDrafts.filter(({ draft, record }) => {
+    if (filter === "unreviewed") {
+      return !draft;
+    }
+    if (filter === "needs_review") {
+      return draft?.reviewState === "needs_review";
+    }
+    if (filter === "unsafe") {
+      return draft?.unsafeToActDirectly;
+    }
+    if (filter === "local") {
+      return record.origin === "local_observer";
+    }
+    return true;
+  });
+
   return (
     <div className="v1-queue">
       <div className="panel__header">
         <div>
           <h2>【未整理資料清冊】</h2>
-          <p>資料仍來自 Phase 0 原始資訊與本機草稿，尚未完成查核。</p>
+          <p>
+            資料仍來自 Phase 0
+            原始資訊與本機草稿，尚未完成查核；請先於作業欄選取一筆案件辦理。
+          </p>
         </div>
-        <p>列管件數：{records.length} 筆</p>
+        <p>
+          顯示：{filteredRecords.length} / {records.length} 筆
+        </p>
+      </div>
+
+      {notice ? <div className="v1-service-notice">{notice}</div> : null}
+
+      <div className="v1-filter-bar" aria-label="清冊待辦篩選">
+        <strong>待辦篩選公告列</strong>
+        {filterOptions.map((option) => (
+          <button
+            className={filter === option.key ? "active" : ""}
+            key={option.key}
+            type="button"
+            onClick={() => setFilter(option.key)}
+          >
+            {option.label}（{option.count}）
+          </button>
+        ))}
+        <span>※ 資訊取得方式不是查核結果。</span>
       </div>
 
       <div className="table-frame">
@@ -539,17 +768,14 @@ function RecordQueue({
           <thead>
             <tr>
               <th scope="col">案號</th>
-              <th scope="col">來源 / 狀態</th>
+              <th scope="col">資訊取得方式 / 查核狀態</th>
               <th scope="col">原始文字</th>
               <th scope="col">整理狀態</th>
               <th scope="col">作業</th>
             </tr>
           </thead>
           <tbody>
-            {records.map((record) => {
-              const draft = reviewDrafts.find(
-                (item) => item.recordId === record.id,
-              );
+            {filteredRecords.map(({ draft, record }) => {
               return (
                 <tr
                   className={
@@ -564,7 +790,10 @@ function RecordQueue({
                     </span>
                   </td>
                   <td>
-                    <SourceLabel sourceType={record.sourceType} />
+                    <SourceLabel
+                      prefix="資訊取得方式"
+                      sourceType={record.sourceType}
+                    />
                     <StatusBadge status={record.verificationStatus} />
                     {record.actorRelation ? (
                       <span className="draft-state">
@@ -600,7 +829,7 @@ function RecordQueue({
                   </td>
                   <td>
                     <button type="button" onClick={() => onSelect(record.id)}>
-                      進行整理
+                      選此案 → 進入整理判斷
                     </button>
                     {record.origin === "local_observer" ? (
                       <button
@@ -625,12 +854,14 @@ function RecordQueue({
 function ReviewPanel({
   draft,
   onAiOrganize,
+  onGoToQueue,
   onSyncToActionView,
   onUpdate,
   record,
 }: {
   draft: V1ReviewDraft;
   onAiOrganize: () => Promise<string>;
+  onGoToQueue: () => void;
   onSyncToActionView: () => string;
   onUpdate: (patch: Partial<V1ReviewDraft>, auditNote: string) => void;
   record: V1CombinedRecord;
@@ -644,8 +875,16 @@ function ReviewPanel({
   const [syncMessage, setSyncMessage] = useState(
     "行動者檢視只會看到你按下同步時建立的快照。",
   );
+  const hasSummary = draft.summary.trim().length > 0;
+  const hasHumanReviewNote = draft.humanReviewNote.trim().length > 0;
+  const hasDecisionReason = draft.decisionReason.trim().length > 0;
+  const canUseReviewState = draft.reviewState !== "do_not_use_yet";
   const canSyncToActionView =
-    draft.summary.trim().length > 0 && draft.humanReviewNote.trim().length > 0;
+    hasSummary &&
+    hasHumanReviewNote &&
+    hasDecisionReason &&
+    draft.unsafeToActDirectly &&
+    canUseReviewState;
   const hasUnsyncedChanges = draft.actionSnapshot
     ? draft.updatedAt > draft.actionSnapshot.sharedAt
     : false;
@@ -694,6 +933,34 @@ function ReviewPanel({
         {record.uncertaintyNote ? (
           <p>不確定處：{record.uncertaintyNote}</p>
         ) : null}
+        <div className="table-frame">
+          <table className="admin-table v1-case-facts">
+            <tbody>
+              <tr>
+                <th scope="row">資訊取得方式</th>
+                <td>{labelForSourceType(record.sourceType)}（不是可信度）</td>
+                <th scope="row">查核狀態</th>
+                <td>
+                  <StatusBadge status={record.verificationStatus} />
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">來源角色</th>
+                <td>
+                  {record.actorRelation
+                    ? actorRelationLabels[record.actorRelation]
+                    : "未提供，需由整理者確認"}
+                </td>
+                <th scope="row">時間資訊</th>
+                <td>
+                  {record.observedAt
+                    ? `觀測或聽聞：${formatDateTime(record.observedAt)}`
+                    : `更新：${formatDateTime(record.updatedAt)}`}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p className="draft-editor__notice">
           原文清楚度只描述原始文字是否支撐整理判斷，不代表資料已查核、
           已確認或可以行動。
@@ -733,10 +1000,19 @@ function ReviewPanel({
           <div>
             <h3>同步到行動者檢視</h3>
             <p>同步只建立一份可閱讀快照，不代表資料已查核，也不會變成任務。</p>
+            <SyncChecklist
+              canUseReviewState={canUseReviewState}
+              hasDecisionReason={hasDecisionReason}
+              hasHumanReviewNote={hasHumanReviewNote}
+              hasSummary={hasSummary}
+              isUnsafeToAct={draft.unsafeToActDirectly}
+            />
             {draft.actionSnapshot ? (
               <p>
                 上次同步：{formatDateTime(draft.actionSnapshot.sharedAt)}
-                {hasUnsyncedChanges ? "，草稿同步後已有新修改。" : ""}
+                {hasUnsyncedChanges
+                  ? "，草稿同步後已有新修改，請再次確認。"
+                  : ""}
               </p>
             ) : (
               <p>目前尚未同步到行動者檢視。</p>
@@ -752,6 +1028,13 @@ function ReviewPanel({
           </button>
           <p className="sync-panel__message">{syncMessage}</p>
         </section>
+
+        <div className="v1-review-toolbar" aria-label="整理判斷輔助工具列">
+          <button type="button" onClick={onGoToQueue}>
+            返回未整理資料清冊
+          </button>
+          <span>※ 完成同步前，請逐項確認上列表格，不可省略人工判斷。</span>
+        </div>
 
         <div className="field-grid">
           <label className="field">
@@ -889,11 +1172,58 @@ function ReviewPanel({
   );
 }
 
+function SyncChecklist({
+  canUseReviewState,
+  hasDecisionReason,
+  hasHumanReviewNote,
+  hasSummary,
+  isUnsafeToAct,
+}: {
+  canUseReviewState: boolean;
+  hasDecisionReason: boolean;
+  hasHumanReviewNote: boolean;
+  hasSummary: boolean;
+  isUnsafeToAct: boolean;
+}) {
+  const rows = [
+    ["候選摘要", hasSummary, "需寫明原文可支撐的候選整理內容"],
+    ["人工確認註記", hasHumanReviewNote, "需說明仍待人確認之事項"],
+    ["判斷理由", hasDecisionReason, "需說明為何不能直接採信或行動"],
+    ["不可直接行動", isUnsafeToAct, "同步前必須保留此項警示"],
+    ["整理狀態", canUseReviewState, "暫不採用資料不得同步給行動者"],
+  ] as const;
+
+  return (
+    <table className="admin-table v1-sync-checklist">
+      <thead>
+        <tr>
+          <th scope="col">同步前項目</th>
+          <th scope="col">辦理情形</th>
+          <th scope="col">檢核說明</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([label, passed, note]) => (
+          <tr key={label}>
+            <td>{label}</td>
+            <td>{passed ? "已填具但未查核" : "尚未填具或不符合"}</td>
+            <td>{note}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function ActionView({
+  onGoToQueue,
+  onGoToReview,
   onSelect,
   records,
   reviewDrafts,
 }: {
+  onGoToQueue: () => void;
+  onGoToReview: () => void;
   onSelect: (recordId: string) => void;
   records: V1CombinedRecord[];
   reviewDrafts: V1ReviewDraft[];
@@ -928,78 +1258,107 @@ function ActionView({
       </div>
 
       {actionItems.length === 0 ? (
-        <div className="empty-state">
-          目前沒有可給行動者查看的整理快照。請先到「整理判斷」建立摘要、
-          下一步與人工確認註記，並按下同步。
+        <div className="empty-state v1-empty-actions">
+          <p>
+            目前沒有可給行動者查看的整理快照。請先到「整理判斷」建立摘要、
+            下一步與人工確認註記，並按下同步。
+          </p>
+          <div className="draft-actions">
+            <button type="button" onClick={onGoToReview}>
+              返回整理判斷辦理同步
+            </button>
+            <button type="button" onClick={onGoToQueue}>
+              回未整理資料清冊選案
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="table-frame">
-          <table className="admin-table v1-action-table">
-            <thead>
-              <tr>
-                <th scope="col">案號 / 狀態</th>
-                <th scope="col">整理給行動者看的摘要</th>
-                <th scope="col">行動前限制</th>
-                <th scope="col">下一步</th>
-                <th scope="col">回整理</th>
-              </tr>
-            </thead>
-            <tbody>
-              {actionItems.map(({ draft, record, snapshot }) => {
-                const hasNewDraftChanges = draft.updatedAt > snapshot.sharedAt;
-                return (
-                  <tr key={draft.recordId}>
-                    <td className="case-id">
-                      <strong>{record.id}</strong>
-                      <span className="draft-state">
-                        {recordOriginLabels[record.origin as V1RecordOrigin]}
-                      </span>
-                      <SourceLabel sourceType={record.sourceType} />
-                      <StatusBadge status={record.verificationStatus} />
-                      <div className="table-tags">
-                        <span>{reviewStateLabels[snapshot.reviewState]}</span>
-                        <span>{rawClarityLabels[snapshot.rawClarity]}</span>
-                        <span>{kindLabels[snapshot.candidateKind]}</span>
-                        <span>同步：{formatDateTime(snapshot.sharedAt)}</span>
+        <>
+          <div className="v1-action-warning">
+            【本表非任務清冊】本表全部資料仍為未查核整理快照，只能用於回到人工確認與補問流程，不得直接派工、前往現場或判斷真偽。
+          </div>
+          <div className="table-frame">
+            <table className="admin-table v1-action-table">
+              <thead>
+                <tr>
+                  <th scope="col">案號 / 狀態</th>
+                  <th scope="col">整理給行動者看的摘要</th>
+                  <th scope="col">行動前限制</th>
+                  <th scope="col">下一步確認事項（非任務）</th>
+                  <th scope="col">回整理</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actionItems.map(({ draft, record, snapshot }) => {
+                  const hasNewDraftChanges =
+                    draft.updatedAt > snapshot.sharedAt;
+                  return (
+                    <tr
+                      className={
+                        hasNewDraftChanges ? "v1-action-row--stale" : ""
+                      }
+                      key={draft.recordId}
+                    >
+                      <td className="case-id">
+                        <strong>{record.id}</strong>
+                        <span className="draft-state">
+                          {recordOriginLabels[record.origin]}
+                        </span>
+                        <SourceLabel
+                          prefix="資訊取得方式"
+                          sourceType={record.sourceType}
+                        />
+                        <span className="draft-state">非查核狀態</span>
+                        <StatusBadge status={record.verificationStatus} />
+                        <div className="table-tags">
+                          <span>{reviewStateLabels[snapshot.reviewState]}</span>
+                          <span>{rawClarityLabels[snapshot.rawClarity]}</span>
+                          <span>{kindLabels[snapshot.candidateKind]}</span>
+                          <span>同步：{formatDateTime(snapshot.sharedAt)}</span>
+                          {hasNewDraftChanges ? (
+                            <span>快照已非最新整理</span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
                         {hasNewDraftChanges ? (
-                          <span>整理頁已有新修改</span>
+                          <p className="v1-stale-warning">
+                            ※ 此快照已不是最新整理判斷，請回整理頁確認。
+                          </p>
                         ) : null}
-                      </div>
-                    </td>
-                    <td>
-                      <p>{snapshot.summary}</p>
-                      <p className="draft-editor__notice">
-                        原文：{record.rawText}
-                      </p>
-                    </td>
-                    <td>
-                      <p>
-                        {snapshot.unsafeToActDirectly
-                          ? "不能直接變成任務或行動依據。"
-                          : "仍需人工確認情境後才能判斷是否可行動。"}
-                      </p>
-                      <p>{snapshot.humanReviewNote}</p>
-                      <p>{snapshot.decisionReason}</p>
-                    </td>
-                    <td>
-                      <strong>
-                        {nextStepLabels[snapshot.suggestedNextStep]}
-                      </strong>
-                      <p>
-                        請先依人工確認註記補足資訊，再由人決定是否進入任務流程。
-                      </p>
-                    </td>
-                    <td>
-                      <button type="button" onClick={() => onSelect(record.id)}>
-                        回到整理判斷
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        <p>{snapshot.summary}</p>
+                        <p className="draft-editor__notice">
+                          原文：{record.rawText}
+                        </p>
+                      </td>
+                      <td>
+                        <p>不能直接變成任務或行動依據。</p>
+                        <p>{snapshot.humanReviewNote}</p>
+                        <p>{snapshot.decisionReason}</p>
+                      </td>
+                      <td>
+                        <strong>
+                          {actionNextStepLabels[snapshot.suggestedNextStep]}
+                        </strong>
+                        <p>
+                          此欄是確認事項，不是任務指令；請先依人工確認註記補足資訊。
+                        </p>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => onSelect(record.id)}
+                        >
+                          回到整理判斷
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -1016,6 +1375,7 @@ function AuditPanel({
   onReset: () => void;
   reviewDrafts: V1ReviewDraft[];
 }) {
+  const [confirmReset, setConfirmReset] = useState(false);
   const events = [
     ...observerRecords.flatMap((record) =>
       record.auditTrail.map((event) => ({
@@ -1028,6 +1388,15 @@ function AuditPanel({
     ),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
+  function handleReset() {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      return;
+    }
+    onReset();
+    setConfirmReset(false);
+  }
+
   return (
     <div className="v1-audit">
       <div className="panel__header">
@@ -1039,9 +1408,14 @@ function AuditPanel({
       </div>
 
       <div className="draft-actions">
-        <button className="danger-action" type="button" onClick={onReset}>
-          清除全部本機草稿
+        <button className="danger-action" type="button" onClick={handleReset}>
+          {confirmReset ? "再按一次確認清除本機未整理草稿" : "清除全部本機草稿"}
         </button>
+        {confirmReset ? (
+          <span className="v1-danger-note">
+            ※ 本項作業只清除本機瀏覽器草稿，不代表正式資料刪除。
+          </span>
+        ) : null}
       </div>
 
       {events.length === 0 ? (

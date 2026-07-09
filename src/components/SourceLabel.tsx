@@ -8,10 +8,20 @@ const labels: Record<string, string> = {
   mock: "模擬資料",
 };
 
-export function SourceLabel({ sourceType }: { sourceType: string }) {
+export function labelForSourceType(sourceType: string): string {
+  return labels[sourceType] ?? sourceType;
+}
+
+export function SourceLabel({
+  prefix = "來源",
+  sourceType,
+}: {
+  prefix?: string;
+  sourceType: string;
+}) {
   return (
     <span className="source-label">
-      來源：{labels[sourceType] ?? sourceType}
+      {prefix}：{labelForSourceType(sourceType)}
     </span>
   );
 }
