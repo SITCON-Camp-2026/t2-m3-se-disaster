@@ -45,9 +45,9 @@ export function Phase0OrganizedInfoPanel({
               <tr>
                 <th scope="col">案號</th>
                 <th scope="col">整理項目</th>
-                <th scope="col">候選類型 / 信心</th>
-                <th scope="col">整理摘要與依據</th>
-                <th scope="col">限制事項與人工確認</th>
+                <th scope="col">候選類型 / 信心 / 來源角色</th>
+                <th scope="col">整理摘要</th>
+                <th scope="col">人工確認與行動限制</th>
                 <th scope="col">下一步</th>
                 <th scope="col">作業</th>
               </tr>
@@ -57,8 +57,6 @@ export function Phase0OrganizedInfoPanel({
                 const record = records.find(
                   (item) => item.id === draft.messyRecordId,
                 );
-                const evidence = visibleLines(draft.evidence);
-                const blockers = visibleLines(draft.blockers);
 
                 return (
                   <tr key={draft.id}>
@@ -95,15 +93,6 @@ export function Phase0OrganizedInfoPanel({
                     </td>
                     <td>
                       <p>{draft.summary || "尚未填寫整理摘要。"}</p>
-                      {evidence.length > 0 ? (
-                        <ul>
-                          {evidence.map((item, index) => (
-                            <li key={`${item}-${index}`}>{item}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p>尚未標出依據。</p>
-                      )}
                     </td>
                     <td>
                       <strong>
@@ -111,20 +100,8 @@ export function Phase0OrganizedInfoPanel({
                           ? "不可直接行動"
                           : "仍需情境確認"}
                       </strong>
-                      {blockers.length > 0 ? (
-                        <ul>
-                          {blockers.map((item, index) => (
-                            <li key={`${item}-${index}`}>{item}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p>沒有額外註記。</p>
-                      )}
                       {draft.humanReviewNote ? (
                         <p>※ {draft.humanReviewNote}</p>
-                      ) : null}
-                      {draft.humanCorrection ? (
-                        <p>人類修正：{draft.humanCorrection}</p>
                       ) : null}
                     </td>
                     <td>{nextStepLabels[draft.suggestedNextStep]}</td>
@@ -145,8 +122,4 @@ export function Phase0OrganizedInfoPanel({
       )}
     </div>
   );
-}
-
-function visibleLines(lines: string[]): string[] {
-  return lines.map((line) => line.trim()).filter(Boolean);
 }

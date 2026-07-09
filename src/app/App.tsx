@@ -1,13 +1,16 @@
 import { useState } from "react";
 import messyReports from "../fixtures/phase-0/messy-reports.json";
 import { EmptyState } from "../components/EmptyState";
+import { FallingDebrisBackground } from "../components/FallingDebrisBackground";
 import {
   createInitialPhase0Drafts,
   createPhase0Draft,
 } from "../features/phase-0/phase0-drafts";
+import { Phase0AiPopup } from "../features/phase-0/Phase0AiPopup";
 import { Phase0OrganizedInfoPanel } from "../features/phase-0/Phase0OrganizedInfoPanel";
 import { Phase0RawInfoPanel } from "../features/phase-0/Phase0RawInfoPanel";
 import { Phase0Workbench } from "../features/phase-0/Phase0Workbench";
+import type { Phase0AiDraftPatch } from "../features/phase-0/phase0-ai";
 import type {
   Phase0MessyRecord,
   Phase0OrganizedDraft,
@@ -31,6 +34,12 @@ export function App() {
   const [drafts, setDrafts] = useState<Phase0OrganizedDraft[]>(() =>
     createInitialPhase0Drafts(phase0Records),
   );
+  const selectedRecord =
+    phase0Records.find((record) => record.id === selectedRecordId) ??
+    phase0Records[0];
+  const selectedDraft = selectedRecord
+    ? drafts.find((draft) => draft.messyRecordId === selectedRecord.id)
+    : undefined;
 
   function selectForWorkbench(recordId: string) {
     ensureDraft(recordId);
@@ -60,6 +69,44 @@ export function App() {
           : draft,
       ),
     );
+  }
+
+  function applyAiSuggestion(recordId: string, patch: Phase0AiDraftPatch) {
+    const record = phase0Records.find((item) => item.id === recordId);
+    if (!record) {
+      return;
+    }
+
+    const updatedAt = new Date().toISOString();
+    setDrafts((currentDrafts) => {
+      const nextDraft = {
+        ...createPhase0Draft(record),
+        ...patch,
+        confirmedAt: undefined,
+        humanCorrection: "AI e化服務產生草稿，尚待人工確認。",
+        status: "draft" as const,
+        updatedAt,
+      };
+
+      if (currentDrafts.some((draft) => draft.messyRecordId === recordId)) {
+        return currentDrafts.map((draft) =>
+          draft.messyRecordId === recordId
+            ? {
+                ...draft,
+                ...patch,
+                confirmedAt: undefined,
+                humanCorrection: "AI e化服務產生草稿，尚待人工確認。",
+                status: "draft",
+                updatedAt,
+              }
+            : draft,
+        );
+      }
+
+      return [...currentDrafts, nextDraft];
+    });
+    setSelectedRecordId(recordId);
+    setActiveTab("workbench");
   }
 
   function deleteDraft(recordId: string) {
@@ -143,64 +190,72 @@ export function App() {
     );
 
   return (
-    <main className="layout">
-      <header className="hero">
-        <div className="agency-strip">
-          <span>災害資訊 e 化便民服務平台</span>
-          <span>資料品質列管專區</span>
-          <span>更新：Phase 0 練習版</span>
-        </div>
-        <p className="eyebrow">SITCON Camp 2026 ｜ 第一階段作業系統</p>
-        <h1 className="roc-wordart" data-shadow="災害資訊整理工作台">
-          <span>災害資訊</span>
-          <span>整理工作台</span>
-        </h1>
-        <p className="hero__copy">
-          本系統協助學員依序辦理原始資訊登錄、整理草稿修正、人工確認註記及已整理資訊彙整作業。
-          請注意：本頁資料仍為教學練習資料，整理完成不代表救災事實已正式查核。
-        </p>
-        <div className="ticker" aria-label="重要公告">
-          <span>
-            ※ 重要提醒：needs_review 與 unverified 不得顯示為 verified。
-          </span>
-          <span>※ 本系統不查詢真實地圖、地址、電話或人物資料。</span>
-          <span>※ 請務必保留 agent 推測與人類修正紀錄。</span>
-        </div>
-        <dl className="hero-stats">
-          <div>
-            <dt>原始登錄</dt>
-            <dd>{phase0Records.length}</dd>
+    <>
+      <FallingDebrisBackground />
+      <Phase0AiPopup
+        draft={selectedDraft}
+        record={selectedRecord}
+        onApplySuggestion={applyAiSuggestion}
+      />
+      <main className="layout">
+        <header className="hero">
+          <div className="agency-strip">
+            <span>災害資訊 e 化便民服務平台</span>
+            <span>資料品質列管專區</span>
+            <span>更新：Phase 0 練習版</span>
           </div>
-          <div>
-            <dt>整理列管</dt>
-            <dd>{organizedCount}</dd>
+          <p className="eyebrow">SITCON Camp 2026 ｜ 第一階段作業系統</p>
+          <h1 className="roc-wordart" data-shadow="災害資訊整理工作台">
+            <span>災害資訊</span>
+            <span>整理工作台</span>
+          </h1>
+          <p className="hero__copy">
+            本系統協助學員依序辦理原始資訊登錄、整理草稿修正、人工確認註記及已整理資訊彙整作業。
+            請注意：本頁資料仍為教學練習資料，整理完成不代表救災事實已正式查核。
+          </p>
+          <div className="ticker" aria-label="重要公告">
+            <span>
+              ※ 重要提醒：needs_review 與 unverified 不得顯示為 verified。
+            </span>
+            <span>※ 本系統不查詢真實地圖、地址、電話或人物資料。</span>
+            <span>※ 請務必保留 agent 推測與人類修正紀錄。</span>
           </div>
-          <div>
-            <dt>不可直接行動</dt>
-            <dd>{unsafeCount}</dd>
-          </div>
-          <div>
-            <dt>待查核狀態</dt>
-            <dd>{reviewCount}</dd>
-          </div>
-        </dl>
-      </header>
+          <dl className="hero-stats">
+            <div>
+              <dt>原始登錄</dt>
+              <dd>{phase0Records.length}</dd>
+            </div>
+            <div>
+              <dt>整理列管</dt>
+              <dd>{organizedCount}</dd>
+            </div>
+            <div>
+              <dt>不可直接行動</dt>
+              <dd>{unsafeCount}</dd>
+            </div>
+            <div>
+              <dt>待查核狀態</dt>
+              <dd>{reviewCount}</dd>
+            </div>
+          </dl>
+        </header>
 
-      <nav className="tabs" aria-label="第一階段工作區">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            className={activeTab === tab.key ? "active" : ""}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-          >
-            <span>◆</span>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+        <nav className="tabs" aria-label="第一階段工作區">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              className={activeTab === tab.key ? "active" : ""}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+            >
+              <span>◆</span>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-      <section className="panel">{content}</section>
-    </main>
+        <section className="panel">{content}</section>
+      </main>
+    </>
   );
 }

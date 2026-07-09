@@ -23,13 +23,14 @@
 
 ## 紀錄格式
 
-| 時間  | 階段    | 任務                       | AI / Agent 建議                                                             | 採用 / 拒絕 | 人類判斷理由                                       | 相關檔案 / commit                                                    |
-| ----- | ------- | -------------------------- | --------------------------------------------------------------------------- | ----------- | -------------------------------------------------- | -------------------------------------------------------------------- |
-| 10:15 | Phase 0 | 實作整理工作台與已整理分頁 | 建議用前端 state 建立整理草稿，確認後顯示在新分頁，不寫入 shared fixtures   | 採用        | 符合前端-only 與不把未整理資料假裝成乾淨資料的限制 | `src/app/App.tsx`, `src/features/phase-0/`                           |
-| 10:20 | Phase 0 | 設計確認流程               | 建議把確認狀態命名為 `organized_confirmed`，並保留原始 `verificationStatus` | 採用        | 避免把「整理確認」誤解成事實已外部查核             | `src/components/status-labels.ts`, `Phase0OrganizedInfoPanel.tsx`    |
-| 10:25 | Phase 0 | 安全邊界                   | 初版先避免把 M-001 到 M-012 寫成固定答案表，只使用安全預設草稿              | 採用        | 課程要求草稿可編輯，且不應把 agent 推測當標準答案  | `phase0-drafts.ts`, `Phase0Workbench.tsx`                            |
-| 10:35 | Phase 0 | 依課程文件整理 12 筆資料   | 建議將 12 筆整理成前端保守示範草稿，全部標示不可直接行動並保留人類修正理由  | 採用        | 使用者要求完成資料整理，但仍不可顯示成正式查核答案 | `phase0-drafts.ts`, `docs/phase0-observations.md`                    |
-| 10:40 | Phase 0 | 套用 roc-aesthetic UIUX    | 建議改為行政表格、公告帶、ROC blue、警示黃、舊式按鈕與密集列管版面          | 採用        | 符合使用者指定 skill，但仍保留可讀性與操作性       | `src/styles/global.css`, `src/app/App.tsx`, `Phase0RawInfoPanel.tsx` |
+| 時間  | 階段    | 任務                       | AI / Agent 建議                                                             | 採用 / 拒絕 | 人類判斷理由                                            | 相關檔案 / commit                                                    |
+| ----- | ------- | -------------------------- | --------------------------------------------------------------------------- | ----------- | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| 10:15 | Phase 0 | 實作整理工作台與已整理分頁 | 建議用前端 state 建立整理草稿，確認後顯示在新分頁，不寫入 shared fixtures   | 採用        | 符合前端-only 與不把未整理資料假裝成乾淨資料的限制      | `src/app/App.tsx`, `src/features/phase-0/`                           |
+| 10:20 | Phase 0 | 設計確認流程               | 建議把確認狀態命名為 `organized_confirmed`，並保留原始 `verificationStatus` | 採用        | 避免把「整理確認」誤解成事實已外部查核                  | `src/components/status-labels.ts`, `Phase0OrganizedInfoPanel.tsx`    |
+| 10:25 | Phase 0 | 安全邊界                   | 初版先避免把 M-001 到 M-012 寫成固定答案表，只使用安全預設草稿              | 採用        | 課程要求草稿可編輯，且不應把 agent 推測當標準答案       | `phase0-drafts.ts`, `Phase0Workbench.tsx`                            |
+| 10:35 | Phase 0 | 依課程文件整理 12 筆資料   | 建議將 12 筆整理成前端保守示範草稿，全部標示不可直接行動並保留人類修正理由  | 採用        | 使用者要求完成資料整理，但仍不可顯示成正式查核答案      | `phase0-drafts.ts`, `docs/phase0-observations.md`                    |
+| 10:40 | Phase 0 | 套用 roc-aesthetic UIUX    | 建議改為行政表格、公告帶、ROC blue、警示黃、舊式按鈕與密集列管版面          | 採用        | 符合使用者指定 skill，但仍保留可讀性與操作性            | `src/styles/global.css`, `src/app/App.tsx`, `Phase0RawInfoPanel.tsx` |
+| 10:55 | Phase 0 | 接入本機 AI 整理草稿       | 建議用 Vite dev server 本機代理讀取 opencode 設定，前端只接收草稿 patch     | 採用        | API key 不放 repo、不進前端 bundle，AI 產物仍需人工確認 | `vite.config.ts`, `Phase0AiPopup.tsx`, `phase0-ai.ts`                |
 
 ## 範例
 

@@ -220,16 +220,9 @@ function DraftEditor({
 
       <p className="draft-editor__notice">
         ※ 本草稿只表示小組完成整理判斷；原始資料的查核狀態仍是
-        <strong> {record.verificationStatus}</strong>。
+        <strong> {record.verificationStatus}</strong>
+        。本表單保留選單式判斷，手工輸入只留下摘要與人工確認註記。
       </p>
-
-      <label className="field">
-        <span>草稿標題</span>
-        <input
-          value={draft.title}
-          onChange={(event) => onUpdate({ title: event.target.value })}
-        />
-      </label>
 
       <label className="field">
         <span>整理摘要</span>
@@ -326,28 +319,6 @@ function DraftEditor({
       </label>
 
       <label className="field">
-        <span>判斷依據，一行一項</span>
-        <textarea
-          rows={4}
-          value={draft.evidence.join("\n")}
-          onChange={(event) =>
-            onUpdate({ evidence: splitTextAreaLines(event.target.value) })
-          }
-        />
-      </label>
-
-      <label className="field">
-        <span>卡住原因 / 不能直接使用的原因，一行一項</span>
-        <textarea
-          rows={4}
-          value={draft.blockers.join("\n")}
-          onChange={(event) =>
-            onUpdate({ blockers: splitTextAreaLines(event.target.value) })
-          }
-        />
-      </label>
-
-      <label className="field">
         <span>人工確認註記</span>
         <textarea
           rows={3}
@@ -355,18 +326,6 @@ function DraftEditor({
           placeholder="例如：來源不是當事人、日期不明、與另一筆資訊衝突。"
           onChange={(event) =>
             onUpdate({ humanReviewNote: event.target.value })
-          }
-        />
-      </label>
-
-      <label className="field">
-        <span>人類質疑或修正 agent 判斷</span>
-        <textarea
-          rows={3}
-          value={draft.humanCorrection}
-          placeholder="記錄小組不同意或修正的地方，避免把推測當成事實。"
-          onChange={(event) =>
-            onUpdate({ humanCorrection: event.target.value })
           }
         />
       </label>
@@ -395,8 +354,4 @@ function DraftEditor({
       </div>
     </form>
   );
-}
-
-function splitTextAreaLines(value: string): string[] {
-  return value.split("\n");
 }
