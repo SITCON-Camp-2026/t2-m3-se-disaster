@@ -14,6 +14,7 @@ import type {
   Phase0MessyRecord,
   Phase0OrganizedDraft,
 } from "../features/phase-0/phase0-types";
+import { V1Workbench } from "../features/v1/V1Workbench";
 
 type TabKey = "raw" | "workbench" | "organized";
 
@@ -26,6 +27,17 @@ const tabs: Array<{ key: TabKey; label: string }> = [
 const phase0Records = messyReports satisfies Phase0MessyRecord[];
 
 export function App() {
+  const isV1Path =
+    typeof window !== "undefined" && /\/v1\/?$/.test(window.location.pathname);
+
+  if (isV1Path) {
+    return <V1Workbench />;
+  }
+
+  return <Phase0App />;
+}
+
+function Phase0App() {
   const [activeTab, setActiveTab] = useState<TabKey>("raw");
   const [selectedRecordId, setSelectedRecordId] = useState(
     phase0Records[0]?.id ?? "",
@@ -236,6 +248,9 @@ export function App() {
               <dd>{reviewCount}</dd>
             </div>
           </dl>
+          <div className="v1-home-link">
+            <a href="v1/">進入 v1 重新整理工作台</a>
+          </div>
         </header>
 
         <nav className="tabs" aria-label="第一階段工作區">

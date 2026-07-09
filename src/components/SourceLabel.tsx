@@ -4,6 +4,7 @@ const labels: Record<string, string> = {
   social_post: "社群轉錄",
   official_notice: "官方公告",
   volunteer_update: "志工更新",
+  observer_input: "觀測者輸入",
   mock: "模擬資料",
 };
 

@@ -1,8 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/app/App";
 
 describe("App", () => {
+  beforeEach(() => {
+    window.history.pushState({}, "", "/");
+    window.localStorage.clear();
+  });
+
   it("renders starter title", () => {
     render(<App />);
     expect(
@@ -11,6 +16,9 @@ describe("App", () => {
     expect(screen.getByLabelText("AI e化自動整理廣告專區")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "按此辦理 AI e化整理" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "進入 v1 重新整理工作台" }),
     ).toBeInTheDocument();
   });
 
@@ -170,5 +178,72 @@ describe("App", () => {
     expect(screen.queryByText("整理摘要與依據")).not.toBeInTheDocument();
     expect(screen.queryByText("限制事項與人工確認")).not.toBeInTheDocument();
     expect(screen.queryByText(/人類修正：/)).not.toBeInTheDocument();
+  });
+
+  it("renders the v1 workbench at /v1/", () => {
+    window.history.pushState({}, "", "/v1/");
+
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: /v1 資訊\s*整理工作台/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /未整理資料清冊/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /觀測者新增/ }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/Phase 0 原始資訊/).length).toBeGreaterThan(0);
+    expect(
+      screen.queryByLabelText("AI e化自動整理廣告專區"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("adds observer input as local unverified v1 draft", () => {
+    window.history.pushState({}, "", "/v1/");
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /觀測者新增/ }));
+    fireEvent.change(screen.getByLabelText("原始文字"), {
+      target: {
+        value: "練習場域活動中心旁有人說雨鞋數量需要重新確認。",
+      },
+    });
+    fireEvent.change(screen.getByLabelText("我不確定的地方"), {
+      target: { value: "時間和來源角色都還需要人工確認。" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "儲存為本機未整理草稿" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "【資訊整理判斷】" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("原文清楚度")).toBeInTheDocument();
+    expect(screen.queryByLabelText("信心程度")).not.toBeInTheDocument();
+    expect(screen.getAllByText("未查核").length).toBeGreaterThan(0);
+    expect(screen.getByText(/雨鞋數量需要重新確認/)).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem("sitcon-camp-2026-v1-observer-records"),
+    ).toContain("練習場域活動中心");
+  });
+
+  it("keeps observer input simple and marks it unverified", () => {
+    window.history.pushState({}, "", "/v1/");
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /觀測者新增/ }));
+    fireEvent.change(screen.getByLabelText("原始文字"), {
+      target: { value: "練習文字：電話線索和現場狀態都需要後續確認。" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "儲存為本機未整理草稿" }),
+    );
+
+    expect(screen.getAllByText("未查核").length).toBeGreaterThan(0);
+    expect(
+      window.localStorage.getItem("sitcon-camp-2026-v1-observer-records"),
+    ).toContain("電話線索");
   });
 });

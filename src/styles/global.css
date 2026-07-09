@@ -958,6 +958,72 @@ button:disabled {
   text-align: center;
 }
 
+.v1-home-link {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0 12px;
+}
+
+.v1-home-link a {
+  border: 2px outset #d8d8d8;
+  padding: 6px 10px 5px;
+  background: linear-gradient(180deg, #0049ff, #000095);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-decoration: none;
+  text-shadow: 1px 1px 0 #000000;
+}
+
+.v1-home-link a:active {
+  border-style: inset;
+  transform: translateY(0.8px);
+}
+
+.v1-observer,
+.v1-review,
+.v1-audit,
+.v1-queue {
+  display: grid;
+  gap: 8px;
+}
+
+.v1-observer .error-state {
+  text-align: left;
+}
+
+.v1-record-table {
+  min-width: 1120px;
+}
+
+.v1-record-table td:nth-child(3) {
+  min-width: 360px;
+  line-height: 1.48;
+}
+
+.v1-record-table td:nth-child(5) {
+  min-width: 150px;
+}
+
+.v1-record-table td:nth-child(5) button {
+  display: block;
+  width: 100%;
+  margin-bottom: 5px;
+  text-align: left;
+}
+
+.v1-audit-table {
+  min-width: 860px;
+}
+
+.v1-review .record-card {
+  display: grid;
+  gap: 7px;
+}
+
 @keyframes ai-ad-blink {
   0%,
   54% {
@@ -988,6 +1054,10 @@ button:disabled {
 
   .hero-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v1-home-link {
+    margin-left: 0;
   }
 
   .panel__header {
