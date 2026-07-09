@@ -25,10 +25,17 @@ const tabs: Array<{ key: TabKey; label: string }> = [
 ];
 
 const phase0Records = messyReports satisfies Phase0MessyRecord[];
+const appBasePath = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+
+function isV1Route(pathname: string) {
+  return /\/v1\/?$/.test(pathname.replace(/\/index\.html$/, "/"));
+}
 
 export function App() {
   const isV1Path =
-    typeof window !== "undefined" && /\/v1\/?$/.test(window.location.pathname);
+    typeof window !== "undefined" && isV1Route(window.location.pathname);
 
   if (isV1Path) {
     return <V1Workbench />;
@@ -249,7 +256,7 @@ function Phase0App() {
             </div>
           </dl>
           <div className="v1-home-link">
-            <a href="v1/">進入 v1 重新整理工作台</a>
+            <a href={`${appBasePath}v1/`}>進入 v1 重新整理工作台</a>
           </div>
         </header>
 

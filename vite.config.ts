@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -514,6 +515,14 @@ function sendJson(
 }
 
 export default defineConfig({
-  plugins: [react(), phase0AiProxyPlugin()],
   base: repoName ? `/${repoName}/` : "/",
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        v1: fileURLToPath(new URL("./v1/index.html", import.meta.url)),
+      },
+    },
+  },
+  plugins: [react(), phase0AiProxyPlugin()],
 });

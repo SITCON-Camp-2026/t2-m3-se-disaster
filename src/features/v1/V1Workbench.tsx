@@ -45,6 +45,9 @@ type V1Tab = "queue" | "observer" | "review" | "action" | "audit";
 
 const phase0Records = messyReports satisfies Phase0MessyRecord[];
 const phase0V1Records = phase0Records.map(phase0ToV1Record);
+const appBasePath = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
 
 const tabs: Array<{ key: V1Tab; label: string }> = [
   { key: "queue", label: "未整理資料清冊" },
@@ -321,7 +324,7 @@ export function V1Workbench() {
           </div>
         </dl>
         <div className="v1-home-link">
-          <a href="/">返回 Phase 0 首頁</a>
+          <a href={appBasePath}>返回 Phase 0 首頁</a>
         </div>
       </header>
 

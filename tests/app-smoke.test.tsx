@@ -214,6 +214,9 @@ describe("App", () => {
     expect(
       screen.queryByLabelText("AI e化自動整理廣告專區"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "返回 Phase 0 首頁" }),
+    ).toHaveAttribute("href", "/");
     expectHeroStat("待人工確認", "0");
 
     const firstReviewButton = screen.getAllByRole("button", {
@@ -228,6 +231,16 @@ describe("App", () => {
       screen.getByLabelText("v1 AI e化自動整理草稿區"),
     ).toBeInTheDocument();
     expectHeroStat("待人工確認", "1");
+  });
+
+  it("renders the v1 workbench under a GitHub Pages repository path", () => {
+    window.history.pushState({}, "", "/t2-m3-se-disaster/v1/");
+
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: /v1 資訊\s*整理工作台/ }),
+    ).toBeInTheDocument();
   });
 
   it("applies v1 AI organizer output from the opencode proxy as draft data", async () => {

@@ -42,6 +42,7 @@
 | 17:07 | Release 03 | 行動者檢視同步確認             | 使用者指出整理判斷同步到其他地方應該有確認按鈕；建議改為按下同步後才建立行動者檢視快照                                 | 採用             | 避免整理者編輯中的半成品直接顯示給行動者；同步快照仍不是派工單，也不代表資料已查核                                                 | `src/features/v1/V1Workbench.tsx`, `src/features/v1/v1-types.ts`, `tests/app-smoke.test.tsx`                          |
 | 17:12 | Release 03 | AI e化辦理中提示               | 使用者指出 AI 執行時畫面像當機；補上華國美式 e化案件辦理進度視窗，顯示正在呼叫 opencode 並提醒不要重複點選             | 採用             | 長時間等待需要可見回饋；提示只說明系統正在辦理，不暗示 AI 已查核或已完成整理                                                       | `src/components/AiProcessingWindow.tsx`, `src/features/v1/V1Workbench.tsx`, `src/features/phase-0/Phase0AiPopup.tsx`  |
 | 17:18 | Release 03 | 修正待人工確認計數             | 使用者指出「尚未建立整理判斷」被算成待人工確認，建立整理後還會重複計數；改為只統計已有整理草稿且狀態為待人工確認的案號 | 採用             | 統計應反映整理工作台狀態，不把未建立判斷的原始資訊誤列為待辦；用案號去重避免同一資料被重複加總                                     | `src/features/v1/V1Workbench.tsx`, `tests/app-smoke.test.tsx`                                                         |
+| 17:23 | Release 03 | 修正 GitHub Pages v1 入口      | 使用者指出 push 到 GitHub 後 Pages 看不到 v1；補上 `v1/index.html` 靜態入口，並讓首頁與返回連結使用 Vite base path     | 採用             | GitHub Pages 是靜態站且部署在 repo 子路徑，直接前往 `/v1/` 需要實體入口；連結也不能寫死站台根目錄                                  | `vite.config.ts`, `v1/index.html`, `src/app/App.tsx`, `src/features/v1/V1Workbench.tsx`, `tests/app-smoke.test.tsx`   |
 
 ## 範例
 
