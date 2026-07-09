@@ -14,11 +14,17 @@ type JsonObject = Record<string, unknown>;
 
 type Phase0AiRecord = {
   id: string;
+  actorRelation?: string;
+  observedAt?: string;
+  origin?: string;
   rawText: string;
   sourceType: string;
+  uncertaintyNote?: string;
   updatedAt: string;
   verificationStatus: string;
 };
+
+type AiEndpointMode = "phase0" | "v1";
 
 type OpenCodeProviderConfig = {
   models?: JsonObject;
@@ -49,45 +55,57 @@ function phase0AiProxyPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(
         "/api/phase0/ai-organize",
-        async (request, response) => {
-          if (request.method !== "POST") {
-            sendJson(response, 405, {
-              error: "AI e化整理服務只接受 POST 作業。",
-            });
-            return;
-          }
-
-          try {
-            const body = parseJsonObject(await readBody(request));
-            const record = parsePhase0AiRecord(body.record);
-            const provider = await readCloudflareAiGatewayConfig();
-            const model = firstModelName(provider.models) ?? fallbackModel;
-            const content = await requestAiDraft(provider, model, record);
-            const patch = normalizeAiDraftPatch(
-              parseAiJsonContent(content),
-              record,
-            );
-
-            sendJson(response, 200, {
-              model,
-              notice: "AI 建議已送入工作台草稿，請人工確認後再列管。",
-              patch,
-            });
-          } catch (error) {
-            const statusCode =
-              error instanceof Phase0AiProxyError ? error.statusCode : 500;
-            const message =
-              error instanceof Error
-                ? error.message
-                : "AI e化整理服務發生未明錯誤。";
-
-            sendJson(response, statusCode, { error: message });
-          }
-        },
+        async (request, response) =>
+          handleAiOrganizeRequest(request, response, "phase0"),
+      );
+      server.middlewares.use("/api/v1/ai-organize", async (request, response) =>
+        handleAiOrganizeRequest(request, response, "v1"),
       );
     },
     name: "phase0-local-ai-proxy",
   };
+}
+
+async function handleAiOrganizeRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  mode: AiEndpointMode,
+) {
+  if (request.method !== "POST") {
+    sendJson(response, 405, {
+      error: "AI e化整理服務只接受 POST 作業。",
+    });
+    return;
+  }
+
+  try {
+    const body = parseJsonObject(await readBody(request));
+    const record = parsePhase0AiRecord(body.record);
+    const provider = await readCloudflareAiGatewayConfig();
+    const model = firstModelName(provider.models) ?? fallbackModel;
+    const content = await requestAiDraft(provider, model, record, mode);
+    const aiJson = parseAiJsonContent(content);
+    const patch =
+      mode === "v1"
+        ? normalizeV1AiDraftPatch(aiJson, record)
+        : normalizeAiDraftPatch(aiJson, record);
+
+    sendJson(response, 200, {
+      model,
+      notice:
+        mode === "v1"
+          ? "AI e化草稿已送入 v1 整理欄位，請人工確認後再給行動者查看。"
+          : "AI 建議已送入工作台草稿，請人工確認後再列管。",
+      patch,
+    });
+  } catch (error) {
+    const statusCode =
+      error instanceof Phase0AiProxyError ? error.statusCode : 500;
+    const message =
+      error instanceof Error ? error.message : "AI e化整理服務發生未明錯誤。";
+
+    sendJson(response, statusCode, { error: message });
+  }
 }
 
 async function readBody(request: IncomingMessage): Promise<string> {
@@ -138,6 +156,7 @@ async function requestAiDraft(
   provider: OpenCodeProviderConfig,
   model: string,
   record: Phase0AiRecord,
+  mode: AiEndpointMode,
 ): Promise<string> {
   const providerOptions = provider.options;
   const baseUrl = providerOptions?.baseURL?.replace(/\/+$/, "");
@@ -156,7 +175,7 @@ async function requestAiDraft(
           role: "system",
         },
         {
-          content: createAiPrompt(record),
+          content: createAiPrompt(record, mode),
           role: "user",
         },
       ],
@@ -187,7 +206,13 @@ async function requestAiDraft(
   return content;
 }
 
-function createAiPrompt(record: Phase0AiRecord): string {
+function createAiPrompt(record: Phase0AiRecord, mode: AiEndpointMode): string {
+  return mode === "v1"
+    ? createV1AiPrompt(record)
+    : createPhase0AiPrompt(record);
+}
+
+function createPhase0AiPrompt(record: Phase0AiRecord): string {
   return `請把以下 Phase 0 原始資訊整理成工作台草稿。請遵守：
 - 只使用原文可見內容。
 - 不得查外部資料，不得補地址、電話、人物身分或救災判斷。
@@ -215,6 +240,38 @@ function createAiPrompt(record: Phase0AiRecord): string {
 原文：${record.rawText}`;
 }
 
+function createV1AiPrompt(record: Phase0AiRecord): string {
+  return `請把以下 v1 原始資訊整理成「候選整理草稿」。請遵守：
+- 只使用原文可見內容。
+- 不得查外部資料，不得補地址、電話、人物身分、地圖資訊、現場安全判斷或救災優先順序。
+- 不得輸出 verified、confirmed、已查核、已確認、可派工或可直接行動。
+- rawClarity 只描述原文是否支撐整理判斷，不代表可信度。
+- reviewState 只能是工作台整理狀態，不代表事實查核完成。
+- unsafeToActDirectly 在本課程原型中請輸出 true。
+
+請輸出純 JSON，欄位如下：
+{
+  "summary": "string",
+  "candidateKind": "help_request_candidate | site_status_candidate | task_candidate | assignment_candidate | announcement_candidate | unknown",
+  "rawClarity": "unclear | brief | clear",
+  "reviewState": "needs_review | candidate_draft | do_not_use_yet",
+  "suggestedNextStep": "keep_raw | ask_for_more_info | send_to_human_review | create_candidate_report | create_site_update_suggestion | do_not_use_yet",
+  "unsafeToActDirectly": true,
+  "humanReviewNote": "string",
+  "decisionReason": "string"
+}
+
+原始資訊：
+案號：${record.id}
+來源類型：${record.sourceType}
+來源階段：${record.origin ?? "phase0_fixture"}
+來源角色：${record.actorRelation ?? "unknown"}
+觀測或更新時間：${record.observedAt || record.updatedAt}
+查核狀態：${record.verificationStatus}
+不確定處：${record.uncertaintyNote ?? ""}
+原文：${record.rawText}`;
+}
+
 function parseJsonObject(text: string): JsonObject {
   try {
     const value: unknown = JSON.parse(text);
@@ -237,6 +294,10 @@ function parsePhase0AiRecord(value: unknown): Phase0AiRecord {
     id: stringValue(value.id),
     rawText: stringValue(value.rawText),
     sourceType: stringValue(value.sourceType),
+    actorRelation: stringValue(value.actorRelation),
+    observedAt: stringValue(value.observedAt),
+    origin: stringValue(value.origin),
+    uncertaintyNote: stringValue(value.uncertaintyNote),
     updatedAt: stringValue(value.updatedAt),
     verificationStatus: stringValue(value.verificationStatus),
   };
@@ -319,6 +380,62 @@ function normalizeAiDraftPatch(input: JsonObject, record: Phase0AiRecord) {
       limitedText(input.summary, 620) ||
       "AI 未能產生可靠摘要，請由人工依原文重新整理。",
     title: limitedText(input.title, 72) || `${record.id} AI 整理草稿`,
+    unsafeToActDirectly: true,
+  };
+}
+
+function normalizeV1AiDraftPatch(input: JsonObject, record: Phase0AiRecord) {
+  const candidateKind = enumValue(
+    input.candidateKind ?? input.possibleKind,
+    [
+      "help_request_candidate",
+      "site_status_candidate",
+      "task_candidate",
+      "assignment_candidate",
+      "announcement_candidate",
+      "unknown",
+    ],
+    "unknown",
+  );
+  const rawClarity = enumValue(
+    input.rawClarity,
+    ["unclear", "brief", "clear"],
+    "unclear",
+  );
+  const reviewState = enumValue(
+    input.reviewState,
+    ["needs_review", "candidate_draft", "do_not_use_yet"],
+    "candidate_draft",
+  );
+  const suggestedNextStep = enumValue(
+    input.suggestedNextStep,
+    [
+      "keep_raw",
+      "ask_for_more_info",
+      "send_to_human_review",
+      "create_candidate_report",
+      "create_site_update_suggestion",
+      "do_not_use_yet",
+    ],
+    rawClarity === "unclear" ? "ask_for_more_info" : "send_to_human_review",
+  );
+  const humanReviewNote =
+    limitedText(input.humanReviewNote, 620) ||
+    "AI 僅依原文整理候選草稿，請人工確認來源、時間、地點描述、需求是否仍有效，以及是否會誤導行動者。";
+  const decisionReason =
+    limitedText(input.decisionReason, 620) ||
+    "AI 未提供可用判斷理由，請由資訊整理者依原文補充。";
+
+  return {
+    candidateKind,
+    decisionReason: `${decisionReason}\nAI 沒有查核外部資料，也沒有判斷是否可以行動。`,
+    humanReviewNote: `${humanReviewNote}\nAI 草稿未經人工確認，不得視為已查核事實。`,
+    rawClarity,
+    reviewState,
+    suggestedNextStep,
+    summary:
+      limitedText(input.summary, 720) ||
+      `AI 未能產生可靠摘要，請人工重新整理 ${record.id}。`,
     unsafeToActDirectly: true,
   };
 }

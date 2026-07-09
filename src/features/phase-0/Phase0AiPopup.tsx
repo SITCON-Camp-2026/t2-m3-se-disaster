@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AiProcessingWindow } from "../../components/AiProcessingWindow";
 import { StatusBadge } from "../../components/StatusBadge";
 import { requestPhase0AiDraft, type Phase0AiDraftPatch } from "./phase0-ai";
 import type { Phase0MessyRecord, Phase0OrganizedDraft } from "./phase0-types";
@@ -66,6 +67,7 @@ export function Phase0AiPopup({
       <p className={`ai-ad-popup__message ai-ad-popup__message--${state}`}>
         {message}
       </p>
+      {state === "loading" ? <AiProcessingWindow caseId={record?.id} /> : null}
       <div className="ai-ad-popup__footer">本服務不保存 API key 於 repo</div>
     </aside>
   );

@@ -46,7 +46,20 @@ export type V1CombinedRecord = {
   verificationStatus: string;
 };
 
+export type V1ActionSnapshot = {
+  candidateKind: Phase0PossibleKind;
+  decisionReason: string;
+  humanReviewNote: string;
+  rawClarity: V1RawClarity;
+  reviewState: V1ReviewState;
+  sharedAt: string;
+  suggestedNextStep: Phase0SuggestedNextStep;
+  summary: string;
+  unsafeToActDirectly: boolean;
+};
+
 export type V1ReviewDraft = {
+  actionSnapshot?: V1ActionSnapshot;
   auditTrail: V1AuditEvent[];
   candidateKind: Phase0PossibleKind;
   decisionReason: string;
